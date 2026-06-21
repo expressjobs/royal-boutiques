@@ -1,0 +1,50 @@
+## Cloudflare Workers deployment for Royal Boutiques
+## Built output comes from `npm run build` (Vite + TanStack Start + Nitro cloudflare preset).
+## Deploy with: npx wrangler deploy
+##
+## Before first deploy:
+##   1. wrangler login
+##   2. Set all secrets (see .env.example): wrangler secret put SUPABASE_URL ...etc
+##   3. npm run build
+##   4. npx wrangler deploy
+
+name = "royal-boutiques"
+main = ".output/server/index.mjs"
+compatibility_date = "2025-06-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Static assets emitted by Nitro's cloudflare preset
+[assets]
+directory = ".output/public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+# Workers Observability (logs visible in `wrangler tail` & dashboard)
+[observability]
+enabled = true
+
+# ---- Custom domain ----
+# After first deploy, add the route in the Cloudflare dashboard (Workers → your worker → Triggers → Custom Domains)
+# or uncomment the routes block below. The zone must already exist in your Cloudflare account.
+#
+# routes = [
+#   { pattern = "royalboutiques.com", custom_domain = true },
+#   { pattern = "www.royalboutiques.com", custom_domain = true },
+# ]
+
+# ---- Secrets (do NOT put values here; use `wrangler secret put NAME`) ----
+# Required:
+#   SUPABASE_URL
+#   SUPABASE_PUBLISHABLE_KEY
+#   SUPABASE_SERVICE_ROLE_KEY
+#   SUPABASE_DB_URL              (only if you run migrations from the worker; usually unused at runtime)
+#   MPESA_CONSUMER_KEY
+#   MPESA_CONSUMER_SECRET
+#   MPESA_SHORTCODE
+#   MPESA_PASSKEY
+#   MPESA_ENV                    (sandbox | production)
+#
+# Build-time (must be present at `npm run build` so Vite inlines them):
+#   VITE_SUPABASE_URL
+#   VITE_SUPABASE_PUBLISHABLE_KEY
+#   VITE_SUPABASE_PROJECT_ID
