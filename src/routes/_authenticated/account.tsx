@@ -2,6 +2,7 @@ import { createFileRoute, Link, Outlet, useRouterState, useNavigate } from "@tan
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { BoutiqueLayout } from "@/components/layout/BoutiqueLayout";
+import { useAuth } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/_authenticated/account")({
   head: () => ({ meta: [{ title: "My Account — Royal Boutiques" }] }),
@@ -16,6 +17,7 @@ const TABS = [
 
 function AccountLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { isAdmin } = useAuth();
   return (
     <BoutiqueLayout>
       <div className="max-w-6xl mx-auto px-6 py-16">
@@ -26,22 +28,33 @@ function AccountLayout() {
             {TABS.map((t) => {
               const active = pathname === t.href;
               return (
-                <Link key={t.href} to={t.href as string} className={`block px-4 py-3 text-sm rounded ${active ? "bg-soft text-charcoal font-medium" : "text-charcoal/60 hover:bg-nude"}`}>
+                <Link
+                  key={t.href}
+                  to={t.href as string}
+                  className={`block px-4 py-3 text-sm rounded ${active ? "bg-soft text-charcoal font-medium" : "text-charcoal/60 hover:bg-nude"}`}
+                >
                   {t.label}
                 </Link>
               );
             })}
+            {isAdmin && (
+              <Link
+                to="/admin"
+                className="block px-4 py-3 text-sm rounded bg-charcoal text-white hover:bg-charcoal/90"
+              >
+                Admin Dashboard
+              </Link>
+            )}
             <SignOutButton />
           </nav>
-          <div><Outlet /></div>
+          <div>
+            <Outlet />
+          </div>
         </div>
       </div>
     </BoutiqueLayout>
   );
 }
-
-
-
 
 function SignOutButton() {
   const navigate = useNavigate();

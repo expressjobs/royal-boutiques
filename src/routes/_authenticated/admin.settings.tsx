@@ -17,7 +17,7 @@ function AdminSettings() {
         <Card icon={<Store className="h-5 w-5" />} title="Brand">
           <Row label="Store name" value="Royal Boutiques" />
           <Row label="Slogan" value="Luxury Fashion. Timeless Elegance." />
-          <Row label="Currency" value="USD ($)" />
+          <Row label="Currency" value="KES" />
         </Card>
 
         <Card icon={<MessageCircle className="h-5 w-5" />} title="WhatsApp Orders">
@@ -33,8 +33,8 @@ function AdminSettings() {
         </Card>
 
         <Card icon={<Globe className="h-5 w-5" />} title="Shipping">
-          <Row label="Free shipping threshold" value="$250" />
-          <Row label="Standard shipping" value="$15" />
+          <Row label="Free shipping threshold" value="KES 5,000" />
+          <Row label="Standard shipping" value="Configured at checkout" />
         </Card>
       </div>
     </div>

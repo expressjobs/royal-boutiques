@@ -1,206 +1,395 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { CheckSquare, Edit, Eye, EyeOff, Package, Plus, Search, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+
 import { supabase } from "@/integrations/supabase/client";
 import { formatPrice } from "@/lib/format";
-import { toast } from "sonner";
-import { Plus, Edit, Trash2, X, Image as ImageIcon, Settings as SettingsIcon } from "lucide-react";
-import { ImageUploader } from "@/components/ImageUploader";
 
 export const Route = createFileRoute("/_authenticated/admin/products")({
   component: AdminProducts,
 });
 
-type Form = {
-  id?: string; name: string; slug: string; description: string;
-  price: string; sale_price: string; stock: string;
-  category_id: string; image_url: string;
-  sizes: string; colors: string;
-  is_new: boolean; is_bestseller: boolean; is_luxury: boolean; is_active: boolean;
+type Product = {
+  id: string;
+  name: string;
+  slug: string;
+  price: number;
+  sale_price: number | null;
+  stock: number;
+  category_id: string | null;
+  image_url: string | null;
+  is_active: boolean;
+  owner_type: "royal_boutiques" | "vendor";
+  category: { name: string | null } | null;
 };
 
-const empty: Form = {
-  name: "", slug: "", description: "", price: "", sale_price: "", stock: "0",
-  category_id: "", image_url: "", sizes: "", colors: "",
-  is_new: false, is_bestseller: false, is_luxury: false, is_active: true,
-};
+const PAGE_SIZE = 20;
 
 function AdminProducts() {
-  const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<"details" | "media">("details");
-  const [form, setForm] = useState<Form>(empty);
+  const queryClient = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("");
+  const [status, setStatus] = useState<"all" | "active" | "inactive">("all");
+  const [lowStock, setLowStock] = useState(false);
+  const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [bulkCategory, setBulkCategory] = useState("");
 
-  const { data: products = [] } = useQuery({
+  const productsQuery = useQuery({
     queryKey: ["admin-products"],
     queryFn: async () => {
-      const { data } = await supabase.from("products").select("*, category:categories(name)").order("created_at", { ascending: false });
+      const { data, error } = await supabase
+        .from("products")
+        .select(
+          "id, name, slug, price, sale_price, stock, category_id, image_url, is_active, owner_type, category:categories(name)",
+        )
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as Product[];
+    },
+  });
+
+  const categoriesQuery = useQuery({
+    queryKey: ["admin-categories-options"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("categories").select("id, name").order("name");
+      if (error) throw error;
       return data ?? [];
     },
   });
-  const { data: categories = [] } = useQuery({
-    queryKey: ["all-categories"],
-    queryFn: async () => (await supabase.from("categories").select("id, name").order("name")).data ?? [],
-  });
 
-  const save = async () => {
-    const payload = {
-      name: form.name,
-      slug: form.slug || form.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
-      description: form.description,
-      price: Number(form.price),
-      sale_price: form.sale_price ? Number(form.sale_price) : null,
-      stock: Number(form.stock),
-      category_id: form.category_id || null,
-      image_url: form.image_url,
-      sizes: form.sizes.split(",").map((s) => s.trim()).filter(Boolean),
-      colors: form.colors.split(",").map((s) => s.trim()).filter(Boolean),
-      is_new: form.is_new, is_bestseller: form.is_bestseller, is_luxury: form.is_luxury, is_active: form.is_active,
-    };
-    const { error } = form.id
-      ? await supabase.from("products").update(payload).eq("id", form.id)
-      : await supabase.from("products").insert(payload);
+  const products = productsQuery.data ?? [];
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return products.filter((product) => {
+      if (term && !`${product.name} ${product.slug}`.toLowerCase().includes(term)) return false;
+      if (category && product.category_id !== category) return false;
+      if (status === "active" && !product.is_active) return false;
+      if (status === "inactive" && product.is_active) return false;
+      if (lowStock && product.stock > 10) return false;
+      return true;
+    });
+  }, [products, search, category, status, lowStock]);
+
+  const maxPage = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const visible = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["admin-products"] });
+
+  const updateProduct = async (id: string, payload: Partial<Product>) => {
+    const { error } = await supabase.from("products").update(payload).eq("id", id);
     if (error) return toast.error(error.message);
-    toast.success(form.id ? "Product updated" : "Product added");
-    setOpen(false); setForm(empty);
-    qc.invalidateQueries({ queryKey: ["admin-products"] });
+    toast.success("Product updated");
+    invalidate();
   };
 
-  const del = async (id: string) => {
-    if (!confirm("Delete this product?")) return;
+  const deleteProduct = async (id: string) => {
+    if (!confirm("Delete this product? This cannot be undone.")) return;
     const { error } = await supabase.from("products").delete().eq("id", id);
     if (error) return toast.error(error.message);
-    toast.success("Deleted");
-    qc.invalidateQueries({ queryKey: ["admin-products"] });
+    toast.success("Product deleted");
+    invalidate();
   };
 
-  const edit = (p: any) => {
-    setForm({
-      id: p.id, name: p.name, slug: p.slug, description: p.description ?? "",
-      price: String(p.price), sale_price: p.sale_price ? String(p.sale_price) : "", stock: String(p.stock),
-      category_id: p.category_id ?? "", image_url: p.image_url ?? "",
-      sizes: (p.sizes ?? []).join(", "), colors: (p.colors ?? []).join(", "),
-      is_new: p.is_new, is_bestseller: p.is_bestseller, is_luxury: p.is_luxury, is_active: p.is_active,
-    });
-    setOpen(true);
+  const bulkSetActive = async (is_active: boolean) => {
+    if (!selected.length) return toast.error("Select products first");
+    const { error } = await supabase.from("products").update({ is_active }).in("id", selected);
+    if (error) return toast.error(error.message);
+    toast.success(is_active ? "Products activated" : "Products deactivated");
+    setSelected([]);
+    invalidate();
+  };
+
+  const bulkMoveCategory = async () => {
+    if (!selected.length) return toast.error("Select products first");
+    if (!bulkCategory) return toast.error("Choose a category");
+    const { error } = await supabase
+      .from("products")
+      .update({ category_id: bulkCategory })
+      .in("id", selected);
+    if (error) return toast.error(error.message);
+    toast.success("Products moved");
+    setSelected([]);
+    setBulkCategory("");
+    invalidate();
+  };
+
+  const toggleSelected = (id: string) => {
+    setSelected((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
+    );
   };
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-8">
-        <div><h1 className="font-serif text-3xl">Products</h1><p className="text-sm text-charcoal/60">{products.length} total</p></div>
-        <button onClick={() => { setForm(empty); setOpen(true); }} className="bg-charcoal text-white px-6 py-3 text-[11px] uppercase tracking-[0.2em] font-semibold flex items-center gap-2">
-          <Plus className="h-3 w-3" /> Add Product
+      <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h1 className="font-serif text-3xl">Products</h1>
+          <p className="text-sm text-charcoal/60">
+            {filtered.length} shown from {products.length} products
+          </p>
+        </div>
+        <Link
+          to="/admin/products/new"
+          className="inline-flex items-center justify-center gap-2 bg-charcoal px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-white"
+        >
+          <Plus className="h-4 w-4" /> Create Product
+        </Link>
+      </div>
+
+      <div className="mb-6 grid gap-3 rounded border border-charcoal/10 bg-white p-4 lg:grid-cols-[1fr_180px_150px_130px]">
+        <label className="relative block">
+          <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-charcoal/40" />
+          <input
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setPage(1);
+            }}
+            placeholder="Search name or slug"
+            className="w-full rounded border border-charcoal/15 py-3 pl-10 pr-4 text-sm"
+          />
+        </label>
+        <select
+          value={category}
+          onChange={(event) => {
+            setCategory(event.target.value);
+            setPage(1);
+          }}
+          className="rounded border border-charcoal/15 px-3 py-3 text-sm"
+        >
+          <option value="">All categories</option>
+          {categoriesQuery.data?.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.name}
+            </option>
+          ))}
+        </select>
+        <select
+          value={status}
+          onChange={(event) => {
+            setStatus(event.target.value as typeof status);
+            setPage(1);
+          }}
+          className="rounded border border-charcoal/15 px-3 py-3 text-sm"
+        >
+          <option value="all">All statuses</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+        <label className="flex items-center gap-2 rounded border border-charcoal/15 px-3 py-3 text-sm">
+          <input
+            type="checkbox"
+            checked={lowStock}
+            onChange={(event) => {
+              setLowStock(event.target.checked);
+              setPage(1);
+            }}
+            className="accent-gold"
+          />
+          Low stock
+        </label>
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-center gap-3 rounded border border-charcoal/10 bg-white p-4">
+        <span className="text-sm text-charcoal/60">{selected.length} selected</span>
+        <button
+          onClick={() => bulkSetActive(true)}
+          className="border border-charcoal/15 px-4 py-2 text-xs uppercase tracking-widest"
+        >
+          Activate
+        </button>
+        <button
+          onClick={() => bulkSetActive(false)}
+          className="border border-charcoal/15 px-4 py-2 text-xs uppercase tracking-widest"
+        >
+          Deactivate
+        </button>
+        <select
+          value={bulkCategory}
+          onChange={(event) => setBulkCategory(event.target.value)}
+          className="rounded border border-charcoal/15 px-3 py-2 text-sm"
+        >
+          <option value="">Bulk category</option>
+          {categoriesQuery.data?.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.name}
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={bulkMoveCategory}
+          className="border border-charcoal/15 px-4 py-2 text-xs uppercase tracking-widest"
+        >
+          Apply category
         </button>
       </div>
 
-      <div className="bg-white rounded-2xl border border-charcoal/5 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-nude eyebrow text-charcoal/50">
-            <tr><th className="text-left p-4">Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th></th></tr>
-          </thead>
-          <tbody>
-            {products.map((p: any) => (
-              <tr key={p.id} className="border-t border-charcoal/5">
-                <td className="p-4 flex items-center gap-3">
-                  {p.image_url && <img src={p.image_url} alt="" className="h-12 w-10 object-cover rounded" />}
-                  <span className="font-medium">{p.name}</span>
-                </td>
-                <td>{p.category?.name ?? "—"}</td>
-                <td>{formatPrice(p.price)}</td>
-                <td>{p.stock}</td>
-                <td><span className={`text-[10px] px-2 py-1 rounded ${p.is_active ? "bg-emerald-50 text-emerald-700" : "bg-charcoal/10"}`}>{p.is_active ? "Active" : "Hidden"}</span></td>
-                <td className="text-right pr-4">
-                  <button onClick={() => edit(p)} className="p-2 hover:text-gold"><Edit className="h-4 w-4" /></button>
-                  <button onClick={() => del(p.id)} className="p-2 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="overflow-hidden rounded border border-charcoal/10 bg-white">
+        {productsQuery.isLoading ? (
+          <AdminState text="Loading products..." />
+        ) : productsQuery.error ? (
+          <AdminState text="Could not load products." />
+        ) : visible.length === 0 ? (
+          <AdminState text="No products match these filters." />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[980px] text-sm">
+              <thead className="bg-nude text-[10px] uppercase tracking-[0.2em] text-charcoal/50">
+                <tr>
+                  <th className="p-4 text-left">
+                    <CheckSquare className="h-4 w-4" />
+                  </th>
+                  <th className="p-4 text-left">Product</th>
+                  <th className="p-4 text-left">Category</th>
+                  <th className="p-4 text-left">Price</th>
+                  <th className="p-4 text-left">Sale</th>
+                  <th className="p-4 text-left">Stock</th>
+                  <th className="p-4 text-left">Status</th>
+                  <th className="p-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((product) => (
+                  <tr key={product.id} className="border-t border-charcoal/5">
+                    <td className="p-4">
+                      <input
+                        type="checkbox"
+                        checked={selected.includes(product.id)}
+                        onChange={() => toggleSelected(product.id)}
+                        className="accent-gold"
+                      />
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-3">
+                        {product.image_url ? (
+                          <img
+                            src={product.image_url}
+                            alt={product.name}
+                            className="h-14 w-12 rounded object-cover"
+                          />
+                        ) : (
+                          <div className="grid h-14 w-12 place-items-center rounded bg-nude">
+                            <Package className="h-4 w-4 text-charcoal/30" />
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-medium">{product.name}</p>
+                          <p className="text-xs text-charcoal/50">{product.slug}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-4">{product.category?.name ?? "None"}</td>
+                    <td className="p-4">
+                      <InlineNumber
+                        value={product.price}
+                        onSave={(value) =>
+                          updateProduct(product.id, { price: value } as Partial<Product>)
+                        }
+                      />
+                    </td>
+                    <td className="p-4">
+                      <InlineNumber
+                        value={product.sale_price ?? 0}
+                        nullable
+                        onSave={(value) =>
+                          updateProduct(product.id, {
+                            sale_price: value || null,
+                          } as Partial<Product>)
+                        }
+                      />
+                    </td>
+                    <td className="p-4">
+                      <InlineNumber
+                        value={product.stock}
+                        onSave={(value) =>
+                          updateProduct(product.id, { stock: value } as Partial<Product>)
+                        }
+                      />
+                    </td>
+                    <td className="p-4">
+                      <button
+                        onClick={() => updateProduct(product.id, { is_active: !product.is_active })}
+                        className={`inline-flex items-center gap-1 rounded px-2 py-1 text-[10px] uppercase tracking-widest ${product.is_active ? "bg-emerald-50 text-emerald-700" : "bg-charcoal/10 text-charcoal/60"}`}
+                      >
+                        {product.is_active ? (
+                          <Eye className="h-3 w-3" />
+                        ) : (
+                          <EyeOff className="h-3 w-3" />
+                        )}
+                        {product.is_active ? "Active" : "Hidden"}
+                      </button>
+                    </td>
+                    <td className="p-4 text-right">
+                      <Link
+                        to="/admin/products/$id/edit"
+                        params={{ id: product.id }}
+                        className="inline-flex p-2 hover:text-gold"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Link>
+                      <button
+                        onClick={() => deleteProduct(product.id)}
+                        className="inline-flex p-2 hover:text-red-600"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {open && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setOpen(false)}>
-          <div className="bg-white rounded-2xl p-8 max-w-3xl w-full max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between mb-6">
-              <h2 className="font-serif text-2xl">{form.id ? "Edit Product" : "New Product"}</h2>
-              <button onClick={() => setOpen(false)}><X className="h-5 w-5" /></button>
-            </div>
-
-            <div className="flex gap-1 mb-6 border-b border-charcoal/10">
-              <TabBtn active={tab === "details"} onClick={() => setTab("details")} icon={<SettingsIcon className="h-3.5 w-3.5" />} label="Details" />
-              <TabBtn active={tab === "media"} onClick={() => setTab("media")} disabled={!form.id} icon={<ImageIcon className="h-3.5 w-3.5" />} label={form.id ? "Media" : "Save first to add media"} />
-            </div>
-
-            {tab === "details" && (
-              <div className="space-y-4">
-                <F label="Name" v={form.name} on={(v) => setForm({ ...form, name: v })} />
-                <F label="Slug" v={form.slug} on={(v) => setForm({ ...form, slug: v })} placeholder="auto from name" />
-                <F label="Description" v={form.description} on={(v) => setForm({ ...form, description: v })} textarea />
-                <F label="Primary Image URL" v={form.image_url} on={(v) => setForm({ ...form, image_url: v })} placeholder="paste URL or upload via Media tab" />
-                <div className="grid grid-cols-3 gap-4">
-                  <F label="Price" v={form.price} on={(v) => setForm({ ...form, price: v })} type="number" />
-                  <F label="Sale Price" v={form.sale_price} on={(v) => setForm({ ...form, sale_price: v })} type="number" />
-                  <F label="Stock" v={form.stock} on={(v) => setForm({ ...form, stock: v })} type="number" />
-                </div>
-                <label className="block">
-                  <span className="eyebrow text-charcoal/60 mb-2 block">Category</span>
-                  <select value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value })} className="w-full border border-charcoal/15 px-4 py-3 text-sm rounded">
-                    <option value="">—</option>
-                    {categories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </label>
-                <F label="Sizes (comma-separated)" v={form.sizes} on={(v) => setForm({ ...form, sizes: v })} placeholder="XS, S, M, L" />
-                <F label="Colors (comma-separated)" v={form.colors} on={(v) => setForm({ ...form, colors: v })} placeholder="Black, Cream" />
-                <div className="flex flex-wrap gap-4 text-sm">
-                  <Ck label="New" v={form.is_new} on={(v) => setForm({ ...form, is_new: v })} />
-                  <Ck label="Best Seller" v={form.is_bestseller} on={(v) => setForm({ ...form, is_bestseller: v })} />
-                  <Ck label="Luxury" v={form.is_luxury} on={(v) => setForm({ ...form, is_luxury: v })} />
-                  <Ck label="Active" v={form.is_active} on={(v) => setForm({ ...form, is_active: v })} />
-                </div>
-                <button onClick={save} className="w-full bg-charcoal text-white py-3 text-[11px] uppercase tracking-[0.2em] font-semibold">Save Product</button>
-              </div>
-            )}
-
-            {tab === "media" && form.id && (
-              <ImageUploader
-                productId={form.id}
-                primaryUrl={form.image_url}
-                onPrimaryChange={(url) => setForm({ ...form, image_url: url })}
-              />
-            )}
-          </div>
-        </div>
-      )}
+      <div className="mt-6 flex items-center justify-between text-sm text-charcoal/60">
+        <button
+          disabled={page === 1}
+          onClick={() => setPage((value) => Math.max(1, value - 1))}
+          className="border border-charcoal/15 px-4 py-2 disabled:opacity-40"
+        >
+          Previous
+        </button>
+        <span>
+          Page {page} of {maxPage}
+        </span>
+        <button
+          disabled={page === maxPage}
+          onClick={() => setPage((value) => Math.min(maxPage, value + 1))}
+          className="border border-charcoal/15 px-4 py-2 disabled:opacity-40"
+        >
+          Next
+        </button>
+      </div>
     </div>
   );
 }
 
-function F({ label, v, on, type = "text", textarea, placeholder }: { label: string; v: string; on: (v: string) => void; type?: string; textarea?: boolean; placeholder?: string }) {
+function InlineNumber({
+  value,
+  onSave,
+  nullable,
+}: {
+  value: number;
+  onSave: (value: number) => void;
+  nullable?: boolean;
+}) {
+  const [draft, setDraft] = useState(String(value || ""));
   return (
-    <label className="block">
-      <span className="eyebrow text-charcoal/60 mb-2 block">{label}</span>
-      {textarea
-        ? <textarea value={v} onChange={(e) => on(e.target.value)} rows={3} placeholder={placeholder} className="w-full border border-charcoal/15 px-4 py-3 text-sm rounded" />
-        : <input type={type} value={v} onChange={(e) => on(e.target.value)} placeholder={placeholder} className="w-full border border-charcoal/15 px-4 py-3 text-sm rounded" />}
-    </label>
+    <input
+      type="number"
+      value={draft}
+      placeholder={nullable ? "-" : undefined}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={() => onSave(draft ? Number(draft) : 0)}
+      className="w-24 rounded border border-transparent bg-nude px-2 py-1 focus:border-gold focus:bg-white"
+    />
   );
 }
-function Ck({ label, v, on }: { label: string; v: boolean; on: (v: boolean) => void }) {
-  return <label className="flex items-center gap-2"><input type="checkbox" checked={v} onChange={(e) => on(e.target.checked)} className="accent-gold h-4 w-4" />{label}</label>;
-}
-function TabBtn({ active, onClick, icon, label, disabled }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string; disabled?: boolean }) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={`flex items-center gap-2 px-4 py-3 text-[11px] uppercase tracking-[0.2em] font-semibold border-b-2 transition ${
-        active ? "border-gold text-charcoal" : "border-transparent text-charcoal/50 hover:text-charcoal"
-      } disabled:opacity-40 disabled:cursor-not-allowed`}
-    >
-      {icon} {label}
-    </button>
-  );
+
+function AdminState({ text }: { text: string }) {
+  return <div className="p-10 text-center text-sm text-charcoal/60">{text}</div>;
 }
