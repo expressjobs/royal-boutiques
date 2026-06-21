@@ -1,5 +1,5 @@
 ## Cloudflare Workers deployment for Royal Boutiques
-## Built output comes from `npm run build` (Vite + TanStack Start + Nitro cloudflare preset).
+## Built output comes from `npm run build` (Vite + TanStack Start).
 ## Deploy with: npx wrangler deploy
 ##
 ## Before first deploy:
@@ -9,13 +9,13 @@
 ##   4. npx wrangler deploy
 
 name = "royal-boutiques"
-main = ".output/server/index.mjs"
+main = "dist/server/server.js"
 compatibility_date = "2025-06-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Static assets emitted by Nitro's cloudflare preset
+# Static assets emitted by the Vite/TanStack Start build
 [assets]
-directory = ".output/public"
+directory = "dist/client"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
 
