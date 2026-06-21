@@ -26,23 +26,66 @@ function ContactPage() {
         <div>
           <h2 className="font-serif text-2xl mb-6">Reach Us</h2>
           <div className="space-y-5 text-sm">
-            <Item icon={<Mail className="h-4 w-4" />} title="Email" detail="concierge@royalboutiques.com" />
-            <Item icon={<MessageCircle className="h-4 w-4" />} title="WhatsApp" detail="Chat with a stylist now" />
-            <Item icon={<MapPin className="h-4 w-4" />} title="Studio" detail="Avenue Montaigne, Paris" />
+            <Item
+              icon={<Mail className="h-4 w-4" />}
+              title="Email"
+              detail="concierge@royabotiques.com"
+            />
+            <Item
+              icon={<MessageCircle className="h-4 w-4" />}
+              title="WhatsApp"
+              detail="Chat with a stylist now"
+            />
+            <Item
+              icon={<MapPin className="h-4 w-4" />}
+              title="Studio"
+              detail="Avenue Montaigne, Paris"
+            />
           </div>
-          <a href={buildWhatsAppUrl("Hello Royal Boutiques, I have a question")} target="_blank" rel="noreferrer" className="mt-8 inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 text-[11px] uppercase tracking-[0.2em] font-semibold">
+          <a
+            href={buildWhatsAppUrl("Hello Royal Boutiques, I have a question")}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-8 inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 text-[11px] uppercase tracking-[0.2em] font-semibold"
+          >
             <MessageCircle className="h-4 w-4" /> Open WhatsApp
           </a>
         </div>
         <form
-          onSubmit={(e) => { e.preventDefault(); toast.success("Message sent. We'll reply within one business day."); setForm({ name: "", email: "", message: "" }); }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            toast.success("Message sent. We'll reply within one business day.");
+            setForm({ name: "", email: "", message: "" });
+          }}
           className="space-y-4"
         >
           <h2 className="font-serif text-2xl mb-2">Send a Message</h2>
-          <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Your name" className="w-full border border-charcoal/15 px-4 py-3 text-sm rounded" />
-          <input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="Email" className="w-full border border-charcoal/15 px-4 py-3 text-sm rounded" />
-          <textarea required rows={5} value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} placeholder="How can we help?" className="w-full border border-charcoal/15 px-4 py-3 text-sm rounded" />
-          <button className="bg-charcoal text-white px-8 py-3 text-[11px] uppercase tracking-[0.25em] font-semibold">Send</button>
+          <input
+            required
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            placeholder="Your name"
+            className="w-full border border-charcoal/15 px-4 py-3 text-sm rounded"
+          />
+          <input
+            required
+            type="email"
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+            placeholder="Email"
+            className="w-full border border-charcoal/15 px-4 py-3 text-sm rounded"
+          />
+          <textarea
+            required
+            rows={5}
+            value={form.message}
+            onChange={(e) => setForm({ ...form, message: e.target.value })}
+            placeholder="How can we help?"
+            className="w-full border border-charcoal/15 px-4 py-3 text-sm rounded"
+          />
+          <button className="bg-charcoal text-white px-8 py-3 text-[11px] uppercase tracking-[0.25em] font-semibold">
+            Send
+          </button>
         </form>
       </section>
     </BoutiqueLayout>

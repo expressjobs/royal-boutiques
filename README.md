@@ -69,6 +69,7 @@ supabase db push                       # applies supabase/migrations/*.sql
 ```
 
 Then:
+
 1. **Storage:** create a private bucket named `product-images`.
 2. **Auth:** enable Email/Password; configure Google OAuth provider with client id/secret.
 3. **(Optional)** Seed product data from CSV exports.
@@ -88,34 +89,38 @@ wrangler secret put MPESA_CONSUMER_SECRET
 wrangler secret put MPESA_SHORTCODE
 wrangler secret put MPESA_PASSKEY
 wrangler secret put MPESA_ENV
+wrangler secret put MPESA_CALLBACK_URL
 
 # Vite needs VITE_* present at build time — put them in .env or CI env
 npm run build
 npx wrangler deploy
 ```
 
+Never commit real `.env` files or secret values. Production secrets must be configured with Cloudflare Worker secrets.
+
 Build output:
-- `.output/server/index.mjs` — Worker entry (`main` in `wrangler.toml`)
-- `.output/public/` — static assets (served via `[assets]` binding, SPA fallback handled by `not_found_handling = "single-page-application"`)
 
-### Custom domain — royalboutiques.com
+- `dist/server/server.js` - Worker entry (`main` in `wrangler.toml`)
+- `dist/client/` - static assets (served via `[assets]` binding, SPA fallback handled by `not_found_handling = "single-page-application"`)
 
-1. Add the zone `royalboutiques.com` to your Cloudflare account.
-2. Dashboard → Workers & Pages → `royal-boutiques` → **Triggers → Custom Domains** → add `royalboutiques.com` and `www.royalboutiques.com`. Cloudflare auto-issues TLS.
+### Custom domain — royabotiques.com
+
+1. Add the zone `royabotiques.com` to your Cloudflare account.
+2. Dashboard → Workers & Pages → `royal-boutiques` → **Triggers → Custom Domains** → add `royabotiques.com` and `www.royabotiques.com`. Cloudflare auto-issues TLS.
 3. (Alternative) uncomment the `routes = [...]` block in `wrangler.toml` and `wrangler deploy`.
 
 ---
 
 ## Scripts
 
-| Command | What it does |
-| --- | --- |
-| `npm run dev` | Vite dev server |
-| `npm run build` | Production build (Vite + Nitro → `.output/`) |
-| `npm run preview` | Preview the built site |
-| `npm run lint` | ESLint |
-| `npx wrangler deploy` | Push to Cloudflare Workers |
-| `supabase db push` | Apply local migrations to linked project |
+| Command               | What it does                                 |
+| --------------------- | -------------------------------------------- |
+| `npm run dev`         | Vite dev server                              |
+| `npm run build`       | Production build (Vite + Nitro → `.output/`) |
+| `npm run preview`     | Preview the built site                       |
+| `npm run lint`        | ESLint                                       |
+| `npx wrangler deploy` | Push to Cloudflare Workers                   |
+| `supabase db push`    | Apply local migrations to linked project     |
 
 ---
 

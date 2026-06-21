@@ -28,8 +28,8 @@ function AdminSettings() {
         </Card>
 
         <Card icon={<Mail className="h-5 w-5" />} title="Contact">
-          <Row label="Concierge email" value="concierge@royalboutiques.com" />
-          <Row label="Support" value="support@royalboutiques.com" />
+          <Row label="Concierge email" value="concierge@royabotiques.com" />
+          <Row label="Support" value="support@royabotiques.com" />
         </Card>
 
         <Card icon={<Globe className="h-5 w-5" />} title="Shipping">
@@ -41,11 +41,21 @@ function AdminSettings() {
   );
 }
 
-function Card({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
+function Card({
+  icon,
+  title,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="bg-white rounded-2xl border border-charcoal/5 p-6">
       <div className="flex items-center gap-3 mb-5">
-        <span className="h-10 w-10 grid place-items-center bg-nude rounded-lg text-gold">{icon}</span>
+        <span className="h-10 w-10 grid place-items-center bg-nude rounded-lg text-gold">
+          {icon}
+        </span>
         <h2 className="font-serif text-xl">{title}</h2>
       </div>
       <div className="space-y-2">{children}</div>

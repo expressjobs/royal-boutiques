@@ -3,18 +3,16 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 // Prices are stored and displayed in KES — charged 1:1 via M-Pesa.
-export const USD_TO_KES = 1;
+const CANONICAL_BASE_URL = "https://royabotiques.com";
 
 const initSchema = z.object({
   orderId: z.string().uuid(),
   phone: z.string().min(9).max(15),
-  amountUsd: z.number().positive(),
+  amountKes: z.number().positive(),
 });
 
 function getBaseUrl(env: string) {
-  return env === "production"
-    ? "https://api.safaricom.co.ke"
-    : "https://sandbox.safaricom.co.ke";
+  return env === "production" ? "https://api.safaricom.co.ke" : "https://sandbox.safaricom.co.ke";
 }
 
 async function getMpesaAccessToken(env: string, consumerKey: string, consumerSecret: string) {
@@ -47,7 +45,10 @@ export const initiateMpesaStkPush = createServerFn({ method: "POST" })
     const env = process.env.MPESA_ENV ?? "sandbox";
 
     if (!consumerKey || !consumerSecret || !shortcode || !passkey) {
-      return { ok: false as const, error: "M-Pesa is not yet configured. Please contact the boutique." };
+      return {
+        ok: false as const,
+        error: "M-Pesa is not yet configured. Please contact the boutique.",
+      };
     }
 
     // Verify the order belongs to this user
@@ -61,7 +62,7 @@ export const initiateMpesaStkPush = createServerFn({ method: "POST" })
     }
 
     const phone = normalisePhone(data.phone);
-    const amountKes = Math.round(data.amountUsd * USD_TO_KES);
+    const amountKes = Math.round(data.amountKes);
 
     const timestamp = new Date()
       .toISOString()
@@ -77,11 +78,15 @@ export const initiateMpesaStkPush = createServerFn({ method: "POST" })
     }
 
     // Callback URL — uses published stable domain
-    const projectId = process.env.SUPABASE_PROJECT_ID ?? "";
-    const callbackBase = process.env.MPESA_CALLBACK_URL
-      ?? (projectId ? `https://project--${projectId}.lovable.app` : "");
+    const callbackBase = process.env.MPESA_CALLBACK_URL?.replace(/\/$/, "");
     if (!callbackBase) {
-      return { ok: false as const, error: "Callback URL not configured." };
+      if (env === "production") {
+        return {
+          ok: false as const,
+          error: `M-Pesa callback is not configured. Set MPESA_CALLBACK_URL=${CANONICAL_BASE_URL}.`,
+        };
+      }
+      return { ok: false as const, error: "M-Pesa callback URL is not configured." };
     }
 
     const stkPayload = {

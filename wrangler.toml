@@ -28,8 +28,8 @@ enabled = true
 # or uncomment the routes block below. The zone must already exist in your Cloudflare account.
 #
 # routes = [
-#   { pattern = "royalboutiques.com", custom_domain = true },
-#   { pattern = "www.royalboutiques.com", custom_domain = true },
+#   { pattern = "royabotiques.com", custom_domain = true },
+#   { pattern = "www.royabotiques.com", custom_domain = true },
 # ]
 
 # ---- Secrets (do NOT put values here; use `wrangler secret put NAME`) ----
@@ -43,8 +43,10 @@ enabled = true
 #   MPESA_SHORTCODE
 #   MPESA_PASSKEY
 #   MPESA_ENV                    (sandbox | production)
+#   MPESA_CALLBACK_URL           (production: https://royabotiques.com)
 #
 # Build-time (must be present at `npm run build` so Vite inlines them):
 #   VITE_SUPABASE_URL
 #   VITE_SUPABASE_PUBLISHABLE_KEY
 #   VITE_SUPABASE_PROJECT_ID
+#   SITE_URL                     (canonical: https://royabotiques.com)

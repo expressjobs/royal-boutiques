@@ -22,12 +22,14 @@ export const Route = createFileRoute("/api/public/mpesa/callback")({
         const checkoutRequestId: string = stk.CheckoutRequestID;
         const resultCode: number = stk.ResultCode;
         const resultDesc: string = stk.ResultDesc ?? "";
-        const items: Array<{ Name: string; Value?: string | number }> = stk.CallbackMetadata?.Item ?? [];
+        const items: Array<{ Name: string; Value?: string | number }> =
+          stk.CallbackMetadata?.Item ?? [];
         const get = (k: string) => items.find((i) => i.Name === k)?.Value;
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-        const status = resultCode === 0 ? "succeeded" : resultCode === 1032 ? "cancelled" : "failed";
+        const status =
+          resultCode === 0 ? "succeeded" : resultCode === 1032 ? "cancelled" : "failed";
 
         const { data: payment } = await supabaseAdmin
           .from("payments")
@@ -45,7 +47,12 @@ export const Route = createFileRoute("/api/public/mpesa/callback")({
         if (payment?.order_id && status === "succeeded") {
           await supabaseAdmin
             .from("orders")
-            .update({ status: "processing", payment_method: "mpesa" })
+            .update({ status: "paid", payment_method: "mpesa" })
+            .eq("id", payment.order_id);
+        } else if (payment?.order_id && status !== "succeeded") {
+          await supabaseAdmin
+            .from("orders")
+            .update({ status: "payment_failed", payment_method: "mpesa" })
             .eq("id", payment.order_id);
         }
 
